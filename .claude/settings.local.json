@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(timeout 15 npm run dev)",
+      "Bash(netstat -ano)",
+      "Bash(timeout 60 npm run build)",
+      "Bash(tasklist /FI \"PID eq 15340\")",
+      "Bash(timeout 90 npm run build)",
+      "Bash(timeout 8 npm run dev)",
+      "Bash(timeout 30 npm test)",
+      "Bash(npm run *)",
+      "Bash(echo \"PID del proceso lanzado: $!\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /tmp/index.html -w \"HTTP %{http_code} | tiempo: %{time_total}s | tamaño: %{size_download} bytes\\\\n\" http://localhost:5173/)",
+      "Bash(curl -s -o /tmp/main.js -w \"HTTP %{http_code} | tiempo: %{time_total}s\\\\n\" http://localhost:5173/src/main.tsx)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | %{time_total}s\\\\n\" http://localhost:5173/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | %{time_total}s\\\\n\" http://localhost:5173/src/main.tsx)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id, ProcessName | Format-Table -AutoSize\")",
+      "Bash(powershell -NoProfile -Command \"Get-Process chrome, msedge -ErrorAction SilentlyContinue | Group-Object ProcessName | Select-Object Name, Count | Format-Table -AutoSize\")",
+      "Bash(powershell -NoProfile -Command \"Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | Group-Object State | Select-Object Name, Count | Format-Table -AutoSize\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | %{time_total}s\\\\n\" --max-time 3 http://localhost:5173/)",
+      "Bash(python -c ' *)",
+      "Bash(npm install *)"
+    ]
+  }
+}
