@@ -22,7 +22,9 @@
       "Bash(powershell -NoProfile -Command \"Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | Group-Object State | Select-Object Name, Count | Format-Table -AutoSize\")",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code} | %{time_total}s\\\\n\" --max-time 3 http://localhost:5173/)",
       "Bash(python -c ' *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(git config *)",
+      "Bash(powershell -NoProfile -Command \"cmdkey /list | Select-String 'github'\")"
     ]
   }
 }
