@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
-import { pingSupabase, supabaseDiagnostic } from '@/lib/supabase'
+import { pingSupabase, supabase, supabaseDiagnostic } from '@/lib/supabase'
 import LoginPage from '@/pages/LoginPage'
 import EventsPage from '@/pages/EventsPage'
 import EventDetailPage from '@/pages/EventDetailPage'
@@ -103,8 +103,73 @@ URL actual: ${window.location.href}`
   )
 }
 
+function MissingProfileScreen() {
+  const { session, signOut, refreshProfile } = useAuth()
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const createMyProfile = async () => {
+    if (!session?.user) return
+    setCreating(true)
+    setError(null)
+    const fallbackName = session.user.email?.split('@')[0] ?? 'Usuario'
+    const { error } = await supabase.from('profiles').insert({
+      id: session.user.id,
+      full_name: fallbackName,
+      role: 'profesor', // por seguridad: default profesor; admin lo cambia despues
+      active: true
+    })
+    if (error) {
+      setError(error.message)
+      setCreating(false)
+      return
+    }
+    await refreshProfile()
+    setCreating(false)
+  }
+
+  const handleSignOut = async () => {
+    await signOut()
+    window.location.reload()
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="card-surface p-6 max-w-md w-full space-y-4 text-center">
+        <img src="/logo.png" alt="PG Team" className="h-14 w-14 mx-auto rounded-full ring-2 ring-primary" />
+        <h2 className="heading-display text-xl text-destructive">Tu perfil está incompleto</h2>
+        <p className="text-sm text-muted-foreground">
+          Iniciaste sesión correctamente con <b>{session?.user.email}</b> pero tu usuario no tiene un
+          perfil asociado en la app. Esto pasa con usuarios creados antes de instalar la última versión
+          del sistema.
+        </p>
+        <div className="space-y-2">
+          <button
+            onClick={createMyProfile}
+            disabled={creating}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90 w-full disabled:opacity-50"
+          >
+            {creating ? 'Creando perfil…' : 'Crear mi perfil ahora'}
+          </button>
+          <button
+            onClick={handleSignOut}
+            className="border border-border px-4 py-2 rounded-md text-sm hover:bg-secondary w-full"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+        {error && <div className="text-sm text-destructive">{error}</div>}
+        <p className="text-xs text-muted-foreground border-t border-border pt-3">
+          Si te creás un perfil, vas a quedar como <b>profesor</b>. Para ser admin, pedile a otro admin
+          que te cambie el rol desde Configuración → Profesores, o ejecutá el SQL de promoción en Supabase.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, loading, loadError } = useAuth()
+  const { session, profile, loading, loadError } = useAuth()
   if (loadError) return <DiagnosticErrorScreen message={loadError} />
 
   if (loading) {
@@ -116,6 +181,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     )
   }
   if (!session) return <Navigate to="/login" replace />
+  // Sesión válida pero sin perfil en la tabla profiles → mostrar pantalla de auto-fix
+  if (!profile) return <MissingProfileScreen />
   return <AppShell>{children}</AppShell>
 }
 

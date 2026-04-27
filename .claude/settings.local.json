@@ -37,7 +37,8 @@
       "Bash(curl -s -o /dev/null -w 'HTTP %{http_code} | %{time_total}s\\\\n' -A 'Mozilla/5.0 \\(Linux; Android 14; SM-A536B\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Mobile Safari/537.36' https://pg-team-torneos.vercel.app/)",
       "Bash(curl -s -o /dev/null -w 'HTTP %{http_code} | %{time_total}s\\\\n' -A 'Mozilla/5.0 \\(iPhone\\) Mobile/15E148 Safari/604.1' https://pg-team-torneos.vercel.app/eventos)",
       "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}\\\\n' https://pg-team-torneos.vercel.app/cualquier-ruta-falsa)",
-      "Bash(git commit -m 'Fix URL en manual: pg-team-torneos.vercel.app \\(con guion\\) *)"
+      "Bash(git commit -m 'Fix URL en manual: pg-team-torneos.vercel.app \\(con guion\\) *)",
+      "Bash(git commit -m 'Profile huerfano + CRUD completo de profesores *)"
     ]
   }
 }
