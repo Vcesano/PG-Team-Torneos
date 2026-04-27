@@ -32,7 +32,12 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(git commit -m 'Pantalla de diagnostico real: health check, env preview y ping a Supabase *)"
+      "Bash(git commit -m 'Pantalla de diagnostico real: health check, env preview y ping a Supabase *)",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code} | %{time_total}s | Content-Type: %header{Content-Type}\\\\n' -A 'Mozilla/5.0 \\(iPhone; CPU iPhone OS 17_0 like Mac OS X\\) AppleWebKit/605.1.15 \\(KHTML, like Gecko\\) Version/17.0 Mobile/15E148 Safari/604.1' https://pg-team-torneos.vercel.app/)",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code} | %{time_total}s\\\\n' -A 'Mozilla/5.0 \\(Linux; Android 14; SM-A536B\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Mobile Safari/537.36' https://pg-team-torneos.vercel.app/)",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code} | %{time_total}s\\\\n' -A 'Mozilla/5.0 \\(iPhone\\) Mobile/15E148 Safari/604.1' https://pg-team-torneos.vercel.app/eventos)",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}\\\\n' https://pg-team-torneos.vercel.app/cualquier-ruta-falsa)",
+      "Bash(git commit -m 'Fix URL en manual: pg-team-torneos.vercel.app \\(con guion\\) *)"
     ]
   }
 }

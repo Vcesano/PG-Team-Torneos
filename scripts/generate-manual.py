@@ -257,7 +257,7 @@ def build():
         'El administrador les habrá compartido un link como:',
         styles['Body']))
     flow.append(Paragraph(
-        'https://pgteam-torneos.vercel.app',
+        'https://pg-team-torneos.vercel.app',
         styles['Code']))
     flow.append(Paragraph(
         'Abrilo en cualquier navegador (Chrome, Edge, Safari o Firefox).',
