@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { supabase } from './supabase'
+import { pingSupabase, supabase, supabaseDiagnostic } from './supabase'
 import type { Profile } from './database.types'
 
 interface AuthContextValue {
@@ -58,6 +58,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const init = async () => {
       try {
+        // Verificación temprana: si las env vars no están configuradas, fallar al toque
+        if (!supabaseDiagnostic.urlConfigured || !supabaseDiagnostic.keyConfigured) {
+          throw new Error(
+            'Las variables de entorno de Supabase no están configuradas en este deploy. ' +
+              'Verificá que VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY estén aplicadas a Production en Vercel ' +
+              'y forzá un nuevo deploy.'
+          )
+        }
+
+        // Health check rápido: ping al endpoint público de Supabase. Si esto falla,
+        // sabemos que el problema es de red o env vars (no de auth).
+        const health = await pingSupabase(5000)
+        if (!health.ok) {
+          throw new Error(
+            `No se puede contactar a Supabase (${health.error ?? `HTTP ${health.status}`}). ` +
+              'Causas más comunes: env vars de Vercel con typo o apuntando a otro proyecto, ' +
+              'proyecto Supabase pausado, o bloqueo de red/firewall.'
+          )
+        }
+
         const { data } = await withTimeout(
           supabase.auth.getSession(),
           SESSION_TIMEOUT_MS,
@@ -71,9 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const msg = e instanceof Error ? e.message : String(e)
         console.error('[auth] init falló:', msg)
         if (!mounted) return
-        setLoadError(
-          'No se pudo conectar al servidor. Revisá tu conexión a internet o tocá "Reintentar".'
-        )
+        setLoadError(msg)
       } finally {
         if (mounted) setLoading(false)
       }
