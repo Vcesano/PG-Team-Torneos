@@ -29,16 +29,35 @@ describe('findWeightCategory', () => {
 })
 
 describe('generateFixture', () => {
-  it('agrupa y empareja por modalidad/peso/género/edad/cinturón', () => {
+  it('en pasada estricta empareja los del mismo grupo', () => {
     const items: FixtureInputItem[] = [
       { student: mkStudent('a', 'M', '2000-01-01'), registration: mkReg('r1', 'a', 64) },
       { student: mkStudent('b', 'M', '2001-01-01'), registration: mkReg('r2', 'b', 63) },
-      { student: mkStudent('c', 'M', '2000-06-01'), registration: mkReg('r3', 'c', 68) }
+    ]
+    const groups = generateFixture(items, '2026-04-25', cats)
+    const totalFights = groups.reduce((acc, g) => acc + g.fights.length, 0)
+    expect(totalFights).toBe(1)
+  })
+
+  it('en pasada relajada empareja entre categorías de peso si comparten modalidad y género', () => {
+    const items: FixtureInputItem[] = [
+      { student: mkStudent('a', 'M', '2000-01-01'), registration: mkReg('r1', 'a', 64) }, // -65
+      { student: mkStudent('b', 'M', '2000-06-01'), registration: mkReg('r2', 'b', 68) }, // -70
+    ]
+    const groups = generateFixture(items, '2026-04-25', cats)
+    const totalFights = groups.reduce((acc, g) => acc + g.fights.length, 0)
+    expect(totalFights).toBe(1) // ahora siempre arma el par
+  })
+
+  it('1 hombre + 1 mujer queda sin par (género es obligatorio)', () => {
+    const items: FixtureInputItem[] = [
+      { student: mkStudent('a', 'M', '2000-01-01'), registration: mkReg('r1', 'a', 64) },
+      { student: mkStudent('b', 'F', '2001-01-01'), registration: mkReg('r2', 'b', 63) },
     ]
     const groups = generateFixture(items, '2026-04-25', cats)
     const totalFights = groups.reduce((acc, g) => acc + g.fights.length, 0)
     const totalUnmatched = groups.reduce((acc, g) => acc + g.unmatched.length, 0)
-    expect(totalFights).toBe(1)
-    expect(totalUnmatched).toBe(1)
+    expect(totalFights).toBe(0)
+    expect(totalUnmatched).toBe(2)
   })
 })

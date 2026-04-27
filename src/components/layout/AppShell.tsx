@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Calendar, LogOut, Settings, Users, UserCircle } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Calendar, LogOut, RefreshCw, Settings, Users, UserCircle } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { isAdmin } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/toast'
 
 interface NavItem { to: string; label: string; icon: React.ElementType; adminOnly?: boolean }
 
@@ -17,11 +20,27 @@ const NAV: NavItem[] = [
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [refreshing, setRefreshing] = useState(false)
   const visible = NAV.filter((n) => !n.adminOnly || isAdmin(profile))
 
   const handleSignOut = async () => {
     await signOut()
     navigate('/login', { replace: true })
+  }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await qc.invalidateQueries()
+      await qc.refetchQueries()
+      toast.success('Datos actualizados')
+    } catch (e) {
+      toast.error('Error al refrescar', (e as Error).message)
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   return (
@@ -52,11 +71,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
           ))}
         </nav>
-        <div className="px-4 py-3 border-t border-border">
-          <div className="text-xs text-muted-foreground mb-1">Sesión</div>
-          <div className="text-sm font-medium truncate">{profile?.full_name ?? 'Usuario'}</div>
-          <div className="text-xs text-muted-foreground capitalize">{profile?.role}</div>
-          <Button variant="outline" size="sm" className="w-full mt-3" onClick={handleSignOut}>
+        <div className="px-4 py-3 border-t border-border space-y-2">
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Sesión</div>
+            <div className="text-sm font-medium truncate">{profile?.full_name ?? 'Usuario'}</div>
+            <div className="text-xs text-muted-foreground capitalize">{profile?.role}</div>
+          </div>
+          <Button variant="outline" size="sm" className="w-full" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} /> Refrescar datos
+          </Button>
+          <Button variant="outline" size="sm" className="w-full" onClick={handleSignOut}>
             <LogOut className="h-4 w-4" /> Salir
           </Button>
         </div>
@@ -68,9 +92,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <img src="/logo.png" alt="PG" className="h-9 w-9 rounded-full ring-1 ring-primary" />
           <div className="heading-display text-lg">PG TEAM</div>
         </div>
-        <Button size="sm" variant="ghost" onClick={handleSignOut}>
-          <LogOut className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" onClick={handleRefresh} disabled={refreshing} aria-label="Refrescar datos">
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={handleSignOut} aria-label="Salir">
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       {/* Contenido */}

@@ -24,7 +24,14 @@
       "Bash(python -c ' *)",
       "Bash(npm install *)",
       "Bash(git config *)",
-      "Bash(powershell -NoProfile -Command \"cmdkey /list | Select-String 'github'\")"
+      "Bash(powershell -NoProfile -Command \"cmdkey /list | Select-String 'github'\")",
+      "Bash(pip install *)",
+      "Bash(python -c \"import reportlab; print\\('OK reportlab', reportlab.Version\\)\")",
+      "Bash(python scripts/generate-manual.py)",
+      "Bash(python scripts/generate-users-pdf.py)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }

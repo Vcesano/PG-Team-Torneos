@@ -8,7 +8,7 @@ import {
   SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, RefreshCw, Trash2, Wand2 } from 'lucide-react'
+import { GripVertical, Plus, RefreshCw, Trash2, Wand2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { isAdmin } from '@/lib/permissions'
 import { supabase } from '@/lib/supabase'
@@ -17,6 +17,13 @@ import { ageAt } from '@/lib/age'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
+} from '@/components/ui/dialog'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
 import type {
   Fight, Modality, Registration, Student, WeightCategory
@@ -134,6 +141,10 @@ export default function FixtureTab({ eventId, eventDate }: Props) {
   }, [fights, modalities, weightCats, studentByReg])
 
   const [orderedIds, setOrderedIds] = useState<string[] | null>(null)
+  const [manualOpen, setManualOpen] = useState(false)
+  const [manualForm, setManualForm] = useState<{
+    red: string; blue: string; modality: string
+  }>({ red: '', blue: '', modality: '' })
   const orderedFights = useMemo(() => {
     if (!orderedIds) return enrichedFights
     const map = Object.fromEntries(enrichedFights.map((f) => [f.id, f]))
@@ -221,6 +232,32 @@ export default function FixtureTab({ eventId, eventDate }: Props) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['fights', eventId] })
   })
 
+  const createManualFight = useMutation({
+    mutationFn: async (form: { red: string; blue: string; modality: string }) => {
+      if (!form.red || !form.blue) throw new Error('Elegí ambas esquinas (roja y azul)')
+      if (form.red === form.blue) throw new Error('Los dos competidores no pueden ser el mismo')
+      if (!form.modality) throw new Error('Elegí la modalidad')
+      const nextNumber = (fights[fights.length - 1]?.fight_number ?? 0) + 1
+      const { error } = await supabase.from('fights').insert({
+        event_id: eventId,
+        fight_number: nextNumber,
+        red_registration_id: form.red,
+        blue_registration_id: form.blue,
+        modality_id: form.modality,
+        weight_category_id: null,
+        status: 'pending'
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fights', eventId] })
+      toast.success('Pelea creada')
+      setManualOpen(false)
+      setManualForm({ red: '', blue: '', modality: '' })
+    },
+    onError: (e: Error) => toast.error('Error al crear pelea', e.message)
+  })
+
   const onDragEnd = (e: DragEndEvent) => {
     const { active, over } = e
     if (!over || active.id === over.id) return
@@ -245,11 +282,73 @@ export default function FixtureTab({ eventId, eventDate }: Props) {
             {regs.length} inscriptos · {fights.length} peleas armadas
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {admin && (
             <>
+              <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="default">
+                    <Plus className="h-4 w-4" /> Crear pelea manual
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Nueva pelea manual</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label required>Esquina ROJA (competidor 1)</Label>
+                      <Select value={manualForm.red} onValueChange={(v) => setManualForm({ ...manualForm, red: v })}>
+                        <SelectTrigger><SelectValue placeholder="Elegir competidor" /></SelectTrigger>
+                        <SelectContent>
+                          {regs.map((r) => {
+                            const stu = studentByReg[r.id]
+                            return stu ? (
+                              <SelectItem key={r.id} value={r.id}>
+                                {stu.full_name} · {r.weight_kg}kg · {stu.gender}
+                              </SelectItem>
+                            ) : null
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label required>Esquina AZUL (competidor 2)</Label>
+                      <Select value={manualForm.blue} onValueChange={(v) => setManualForm({ ...manualForm, blue: v })}>
+                        <SelectTrigger><SelectValue placeholder="Elegir competidor" /></SelectTrigger>
+                        <SelectContent>
+                          {regs.filter((r) => r.id !== manualForm.red).map((r) => {
+                            const stu = studentByReg[r.id]
+                            return stu ? (
+                              <SelectItem key={r.id} value={r.id}>
+                                {stu.full_name} · {r.weight_kg}kg · {stu.gender}
+                              </SelectItem>
+                            ) : null
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label required>Modalidad</Label>
+                      <Select value={manualForm.modality} onValueChange={(v) => setManualForm({ ...manualForm, modality: v })}>
+                        <SelectTrigger><SelectValue placeholder="Elegir modalidad" /></SelectTrigger>
+                        <SelectContent>
+                          {modalities.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={() => createManualFight.mutate(manualForm)} disabled={createManualFight.isPending}>
+                      Crear pelea
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <Button variant="outline" onClick={() => generateMut.mutate()} disabled={generateMut.isPending}>
-                <Wand2 className="h-4 w-4" /> {generateMut.isPending ? 'Generando…' : (fights.length ? 'Regenerar' : 'Generar fixture')}
+                <Wand2 className="h-4 w-4" /> {generateMut.isPending ? 'Generando…' : (fights.length ? 'Regenerar' : 'Generar automático')}
               </Button>
               {orderedIds && (
                 <Button onClick={() => reorderMut.mutate(orderedIds)} disabled={reorderMut.isPending}>
@@ -262,8 +361,13 @@ export default function FixtureTab({ eventId, eventDate }: Props) {
       </div>
 
       {orderedFights.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">
-          Aún no hay fixture. {admin ? 'Generalo cuando estén las inscripciones cargadas.' : 'El admin todavía no lo generó.'}
+        <Card><CardContent className="py-10 text-center space-y-2">
+          <p className="text-muted-foreground">Aún no hay peleas armadas para este evento.</p>
+          {admin && (
+            <p className="text-xs text-muted-foreground">
+              Tocá <b>Generar automático</b> para que el sistema arme los cruces, o <b>Crear pelea manual</b> para armarlos uno a uno.
+            </p>
+          )}
         </CardContent></Card>
       ) : (
         <Card>
