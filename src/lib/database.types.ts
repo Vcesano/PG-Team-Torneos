@@ -4,7 +4,7 @@
 export type Gender = 'M' | 'F'
 export type EventStatus = 'draft' | 'open' | 'closed'
 export type FightStatus = 'pending' | 'completed' | 'cancelled'
-export type FightMethod = 'KO' | 'TKO' | 'DECISION' | 'DQ'
+export type FightMethod = 'KO' | 'TKO' | 'DECISION' | 'DQ' | 'DRAW'
 export type Role = 'admin' | 'profesor'
 
 export interface Profile {
