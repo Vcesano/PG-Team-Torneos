@@ -144,14 +144,24 @@ export default function FixtureTab({ eventId, eventDate }: Props) {
 
   const generateMut = useMutation({
     mutationFn: async () => {
+      if (regs.length < 2) {
+        throw new Error(`Necesitás al menos 2 inscripciones (tenés ${regs.length}).`)
+      }
       const items = regs
         .map((r) => ({ registration: r, student: studentByReg[r.id] }))
         .filter((x): x is { registration: Registration; student: Student } => Boolean(x.student))
+      if (items.length < 2) {
+        throw new Error(`Solo ${items.length} inscripcion(es) tienen alumno asociado válido. Verificá los datos.`)
+      }
       const groups = generateFixture(items, eventDate, weightCats)
+      const totalFights = groups.reduce((acc, g) => acc + g.fights.length, 0)
+      const unmatched = groups.flatMap((g) => g.unmatched)
+
       // Reemplazar fixture: borrar pendientes y reinsertar.
       const { error: delErr } = await supabase.from('fights').delete()
         .eq('event_id', eventId).eq('status', 'pending')
       if (delErr) throw delErr
+
       let n = (fights.filter((f) => f.status !== 'pending').length || 0) + 1
       const inserts = groups.flatMap((g: FixtureGroup) => g.fights.map((pf) => ({
         event_id: eventId,
@@ -162,19 +172,28 @@ export default function FixtureTab({ eventId, eventDate }: Props) {
         weight_category_id: pf.weight_category_id,
         status: 'pending' as const
       })))
-      if (inserts.length === 0) return { groups }
-      const { error } = await supabase.from('fights').insert(inserts)
-      if (error) throw error
-      return { groups }
+      if (inserts.length > 0) {
+        const { error } = await supabase.from('fights').insert(inserts)
+        if (error) throw error
+      }
+      return { groups, totalFights, unmatched }
     },
-    onSuccess: ({ groups }) => {
+    onSuccess: ({ totalFights, unmatched }) => {
       qc.invalidateQueries({ queryKey: ['fights', eventId] })
-      const totalFights = groups.reduce((acc, g) => acc + g.fights.length, 0)
-      const unmatched = groups.reduce((acc, g) => acc + g.unmatched.length, 0)
-      toast.success(`Fixture generado: ${totalFights} peleas`,
-        unmatched ? `${unmatched} competidor(es) sin oponente.` : undefined)
+      if (totalFights === 0) {
+        // El algoritmo NO encontró pares. Explicar por qué de forma clara.
+        const detail = unmatched.length > 0
+          ? `Ningún par compatible encontrado. ${unmatched.length} competidor(es) quedaron sin oponente — los criterios de pareo (modalidad + categoría de peso + género + edad + cinturón) no coinciden entre los inscriptos. Revisá la sección "Sin oponente" abajo y/o cargá las peleas manualmente.`
+          : 'No hay competidores para emparejar.'
+        toast.error('No se generaron peleas', detail)
+      } else {
+        toast.success(
+          `Fixture generado: ${totalFights} pelea(s)`,
+          unmatched.length ? `${unmatched.length} competidor(es) sin oponente — ver abajo.` : undefined
+        )
+      }
     },
-    onError: (e: Error) => toast.error('Error', e.message)
+    onError: (e: Error) => toast.error('No se pudo generar fixture', e.message)
   })
 
   const reorderMut = useMutation({
@@ -229,8 +248,8 @@ export default function FixtureTab({ eventId, eventDate }: Props) {
         <div className="flex gap-2">
           {admin && (
             <>
-              <Button variant="outline" onClick={() => generateMut.mutate()} disabled={generateMut.isPending || regs.length < 2}>
-                <Wand2 className="h-4 w-4" /> {fights.length ? 'Regenerar' : 'Generar fixture'}
+              <Button variant="outline" onClick={() => generateMut.mutate()} disabled={generateMut.isPending}>
+                <Wand2 className="h-4 w-4" /> {generateMut.isPending ? 'Generando…' : (fights.length ? 'Regenerar' : 'Generar fixture')}
               </Button>
               {orderedIds && (
                 <Button onClick={() => reorderMut.mutate(orderedIds)} disabled={reorderMut.isPending}>

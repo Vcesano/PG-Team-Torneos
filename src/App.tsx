@@ -9,11 +9,41 @@ import ProfilePage from '@/pages/ProfilePage'
 import AppShell from '@/components/layout/AppShell'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth()
+  const { session, loading, loadError } = useAuth()
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="card-surface p-6 max-w-md text-center space-y-4">
+          <img src="/logo.png" alt="PG Team" className="h-16 w-16 mx-auto rounded-full ring-2 ring-primary" />
+          <h2 className="heading-display text-xl text-destructive">Sin conexión</h2>
+          <p className="text-sm text-muted-foreground">{loadError}</p>
+          <button
+            onClick={async () => {
+              if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations()
+                await Promise.all(regs.map((r) => r.unregister()))
+              }
+              if ('caches' in window) {
+                const keys = await caches.keys()
+                await Promise.all(keys.map((k) => caches.delete(k)))
+              }
+              window.location.reload()
+            }}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90"
+          >
+            Limpiar caché y reintentar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Cargando…</div>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3">
+        <img src="/logo.png" alt="PG Team" className="h-16 w-16 rounded-full ring-2 ring-primary animate-pulse" />
+        <div className="text-muted-foreground text-sm">Conectando…</div>
       </div>
     )
   }

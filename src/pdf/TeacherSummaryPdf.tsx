@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
+import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import { formatDate, formatMoney } from '@/lib/utils'
 import type {
   Belt, Event, Modality, PaymentStatus, Profile, Registration, Student
@@ -14,11 +14,16 @@ interface Props {
   pays: PaymentStatus[]
 }
 
+const LOGO_URL = `${typeof window !== 'undefined' ? window.location.origin : ''}/logo.png`
+
 const s = StyleSheet.create({
   page: { padding: 32, fontSize: 10, fontFamily: 'Helvetica', color: '#111' },
-  header: { borderBottom: '2 solid #b91c1c', paddingBottom: 8, marginBottom: 14 },
-  title: { fontSize: 20, fontWeight: 700, color: '#b91c1c' },
+  header: { flexDirection: 'row', alignItems: 'center', borderBottom: '2 solid #b91c1c', paddingBottom: 10, marginBottom: 14, gap: 12 },
+  logo: { width: 56, height: 56 },
+  headerText: { flex: 1 },
+  title: { fontSize: 18, fontWeight: 700, color: '#b91c1c' },
   subtitle: { fontSize: 11, color: '#444', marginTop: 2 },
+  schoolName: { fontSize: 9, color: '#666', marginTop: 2, letterSpacing: 1 },
   teacher: { marginTop: 14, marginBottom: 4, fontSize: 12, fontWeight: 700, color: '#111', borderBottom: '1 solid #b91c1c', paddingBottom: 2 },
   th: { flexDirection: 'row', backgroundColor: '#f3f4f6', paddingVertical: 4, paddingHorizontal: 4, fontWeight: 700, fontSize: 9 },
   tr: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 4, borderBottom: '1 solid #eee', fontSize: 9 },
@@ -55,10 +60,14 @@ export default function TeacherSummaryPdf({ event, regs, students, teachers, mod
     <Document>
       <Page size="A4" style={s.page}>
         <View style={s.header}>
-          <Text style={s.title}>RESUMEN POR PROFESOR — {event.name.toUpperCase()}</Text>
-          <Text style={s.subtitle}>
-            {formatDate(event.event_date)}{event.location ? ` · ${event.location}` : ''} · Kick Boxing PG Team Tucumán
-          </Text>
+          <Image src={LOGO_URL} style={s.logo} />
+          <View style={s.headerText}>
+            <Text style={s.title}>RESUMEN POR PROFESOR — {event.name.toUpperCase()}</Text>
+            <Text style={s.subtitle}>
+              {formatDate(event.event_date)}{event.location ? ` · ${event.location}` : ''}
+            </Text>
+            <Text style={s.schoolName}>KICK BOXING PG TEAM TUCUMÁN</Text>
+          </View>
         </View>
         {orderedTeacherIds.length === 0 && <Text>No hay inscripciones cargadas.</Text>}
         {orderedTeacherIds.map((teacherId) => {

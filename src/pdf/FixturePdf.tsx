@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
+import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import { formatDate } from '@/lib/utils'
 import type {
   Event, Fight, Modality, Registration, Student, WeightCategory
@@ -13,11 +13,16 @@ interface Props {
   weightCats: WeightCategory[]
 }
 
+const LOGO_URL = `${typeof window !== 'undefined' ? window.location.origin : ''}/logo.png`
+
 const s = StyleSheet.create({
   page: { padding: 32, fontSize: 10, fontFamily: 'Helvetica', color: '#111' },
-  header: { borderBottom: '2 solid #b91c1c', paddingBottom: 8, marginBottom: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', borderBottom: '2 solid #b91c1c', paddingBottom: 10, marginBottom: 14, gap: 12 },
+  logo: { width: 56, height: 56 },
+  headerText: { flex: 1 },
   title: { fontSize: 20, fontWeight: 700, color: '#b91c1c' },
   subtitle: { fontSize: 11, color: '#444', marginTop: 2 },
+  schoolName: { fontSize: 9, color: '#666', marginTop: 2, letterSpacing: 1 },
   row: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 6, borderBottom: '1 solid #ddd'
@@ -42,10 +47,14 @@ export default function FixturePdf({ event, fights, regs, students, modalities, 
     <Document>
       <Page size="A4" style={s.page}>
         <View style={s.header}>
-          <Text style={s.title}>{event.name.toUpperCase()}</Text>
-          <Text style={s.subtitle}>
-            {formatDate(event.event_date)}{event.location ? ` · ${event.location}` : ''} · Kick Boxing PG Team Tucumán
-          </Text>
+          <Image src={LOGO_URL} style={s.logo} />
+          <View style={s.headerText}>
+            <Text style={s.title}>{event.name.toUpperCase()}</Text>
+            <Text style={s.subtitle}>
+              {formatDate(event.event_date)}{event.location ? ` · ${event.location}` : ''}
+            </Text>
+            <Text style={s.schoolName}>KICK BOXING PG TEAM TUCUMÁN</Text>
+          </View>
         </View>
         {fights.length === 0 && <Text>No hay peleas cargadas.</Text>}
         {fights.map((f) => {

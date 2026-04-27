@@ -7,6 +7,7 @@ interface AuthContextValue {
   session: Session | null
   profile: Profile | null
   loading: boolean
+  loadError: string | null
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
@@ -14,34 +15,79 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const SESSION_TIMEOUT_MS = 8000 // 8 segundos para detectar conexión muerta
+
+function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Timeout: ${label} demoró más de ${ms}ms`)), ms)
+    Promise.resolve(p).then(
+      (v) => { clearTimeout(t); resolve(v) },
+      (e) => { clearTimeout(t); reject(e) }
+    )
+  })
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
-    if (error) {
-      console.error('[auth] error cargando perfil', error)
+    try {
+      const result = await withTimeout<{ data: Profile | null; error: { message: string } | null }>(
+        supabase.from('profiles').select('*').eq('id', userId).single() as unknown as PromiseLike<{ data: Profile | null; error: { message: string } | null }>,
+        SESSION_TIMEOUT_MS,
+        'cargar perfil'
+      )
+      const { data, error } = result
+      if (error) {
+        console.error('[auth] error cargando perfil', error)
+        setProfile(null)
+        return
+      }
+      setProfile(data)
+    } catch (e) {
+      console.error('[auth] excepción al cargar perfil', e)
       setProfile(null)
-      return
     }
-    setProfile(data)
   }, [])
 
   useEffect(() => {
     let mounted = true
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return
-      setSession(data.session)
-      if (data.session?.user) await loadProfile(data.session.user.id)
-      setLoading(false)
-    })
+
+    const init = async () => {
+      try {
+        const { data } = await withTimeout(
+          supabase.auth.getSession(),
+          SESSION_TIMEOUT_MS,
+          'leer sesión'
+        )
+        if (!mounted) return
+        setSession(data.session)
+        if (data.session?.user) await loadProfile(data.session.user.id)
+        setLoadError(null)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.error('[auth] init falló:', msg)
+        if (!mounted) return
+        setLoadError(
+          'No se pudo conectar al servidor. Revisá tu conexión a internet o tocá "Reintentar".'
+        )
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    init()
+
     const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, newSession) => {
+      if (!mounted) return
       setSession(newSession)
       if (newSession?.user) await loadProfile(newSession.user.id)
       else setProfile(null)
     })
+
     return () => {
       mounted = false
       sub.subscription.unsubscribe()
@@ -62,8 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session, loadProfile])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ session, profile, loading, signIn, signOut, refreshProfile }),
-    [session, profile, loading, signIn, signOut, refreshProfile]
+    () => ({ session, profile, loading, loadError, signIn, signOut, refreshProfile }),
+    [session, profile, loading, loadError, signIn, signOut, refreshProfile]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
