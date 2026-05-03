@@ -52,6 +52,10 @@ URL actual: ${window.location.href}`
         const keys = await caches.keys()
         await Promise.all(keys.map((k) => caches.delete(k)))
       }
+      // Limpiar también localStorage y sessionStorage: el token de sesión de
+      // Supabase se guarda ahí y puede quedar expirado/corrupto causando timeouts.
+      localStorage.clear()
+      sessionStorage.clear()
     } catch {}
     window.location.reload()
   }

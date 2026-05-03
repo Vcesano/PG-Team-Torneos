@@ -92,14 +92,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           )
         }
 
-        const { data } = await withTimeout(
-          supabase.auth.getSession(),
-          SESSION_TIMEOUT_MS,
-          'leer sesión'
-        )
+        let sessionData: { session: Session | null }
+        try {
+          const { data } = await withTimeout(
+            supabase.auth.getSession(),
+            SESSION_TIMEOUT_MS,
+            'leer sesión'
+          )
+          sessionData = data
+        } catch (sessionErr) {
+          const msg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr)
+          if (msg.startsWith('Timeout:')) {
+            // getSession se colgó: casi siempre es una sesión expirada/corrupta
+            // guardada en localStorage que el cliente intenta refrescar y falla.
+            // Solución: limpiar localStorage y continuar sin sesión → pantalla de login.
+            console.warn('[auth] getSession timeout — limpiando sesión local y continuando sin sesión')
+            try { localStorage.clear() } catch {}
+            try { sessionStorage.clear() } catch {}
+            sessionData = { session: null }
+          } else {
+            throw sessionErr // otro error → pantalla de diagnóstico
+          }
+        }
+
         if (!mounted) return
-        setSession(data.session)
-        if (data.session?.user) await loadProfile(data.session.user.id)
+        setSession(sessionData.session)
+        if (sessionData.session?.user) await loadProfile(sessionData.session.user.id)
         setLoadError(null)
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
