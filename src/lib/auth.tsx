@@ -34,23 +34,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadProfile = useCallback(async (userId: string) => {
-    try {
-      const result = await withTimeout<{ data: Profile | null; error: { message: string } | null }>(
-        supabase.from('profiles').select('*').eq('id', userId).single() as unknown as PromiseLike<{ data: Profile | null; error: { message: string } | null }>,
-        SESSION_TIMEOUT_MS,
-        'cargar perfil'
-      )
-      const { data, error } = result
-      if (error) {
-        console.error('[auth] error cargando perfil', error)
-        setProfile(null)
+    // Reintenta hasta 3 veces con 2s de espera entre intentos.
+    // Así un corte momentáneo de red no termina en pantalla "perfil incompleto".
+    const MAX_ATTEMPTS = 3
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(`[auth] reintentando cargar perfil (intento ${attempt + 1}/${MAX_ATTEMPTS})`)
+          await new Promise(r => setTimeout(r, 2000 * attempt))
+        }
+        // maybeSingle() devuelve { data: null, error: null } si no hay fila,
+        // en vez de un error PGRST116 como single(). Más seguro.
+        const result = await withTimeout<{ data: Profile | null; error: { message: string } | null }>(
+          supabase.from('profiles').select('*').eq('id', userId).maybeSingle() as unknown as PromiseLike<{ data: Profile | null; error: { message: string } | null }>,
+          SESSION_TIMEOUT_MS,
+          'cargar perfil'
+        )
+        const { data, error } = result
+        if (error) {
+          console.error(`[auth] error cargando perfil (intento ${attempt + 1})`, error)
+          continue // reintenta
+        }
+        setProfile(data) // null = genuinamente sin perfil
         return
+      } catch (e) {
+        console.error(`[auth] excepción al cargar perfil (intento ${attempt + 1})`, e)
+        // sigue al siguiente intento
       }
-      setProfile(data)
-    } catch (e) {
-      console.error('[auth] excepción al cargar perfil', e)
-      setProfile(null)
     }
+    // Todos los intentos fallaron
+    console.error('[auth] no se pudo cargar el perfil tras', MAX_ATTEMPTS, 'intentos')
+    setProfile(null)
   }, [])
 
   useEffect(() => {

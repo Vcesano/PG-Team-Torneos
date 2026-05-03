@@ -105,25 +105,40 @@ URL actual: ${window.location.href}`
 
 function MissingProfileScreen() {
   const { session, signOut, refreshProfile } = useAuth()
+  const [retrying, setRetrying] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Paso 1: reintentar cargar el perfil.
+  // En la mayoría de los casos el perfil YA existe y el problema fue un corte
+  // momentáneo de red al inicio. Esto lo resuelve sin tocar la base de datos.
+  const handleRetry = async () => {
+    setRetrying(true)
+    setError(null)
+    await refreshProfile()
+    // Si refreshProfile encontró el perfil, este componente se desmonta solo.
+    setRetrying(false)
+  }
+
+  // Paso 2 (fallback): crear el perfil si genuinamente no existe.
+  // Usa upsert (no insert) para que no falle con "duplicate key" si el perfil ya existe.
   const createMyProfile = async () => {
     if (!session?.user) return
     setCreating(true)
     setError(null)
     const fallbackName = session.user.email?.split('@')[0] ?? 'Usuario'
-    const { error } = await supabase.from('profiles').insert({
+    const { error: upsertErr } = await supabase.from('profiles').upsert({
       id: session.user.id,
       full_name: fallbackName,
-      role: 'profesor', // por seguridad: default profesor; admin lo cambia despues
+      role: 'profesor', // por seguridad: default profesor; admin lo cambia después
       active: true
-    })
-    if (error) {
-      setError(error.message)
+    }, { onConflict: 'id' })
+    if (upsertErr) {
+      setError(upsertErr.message)
       setCreating(false)
       return
     }
+    // Siempre refrescamos después del upsert; si el perfil ya existía, lo carga igual.
     await refreshProfile()
     setCreating(false)
   }
@@ -144,10 +159,19 @@ function MissingProfileScreen() {
           del sistema.
         </p>
         <div className="space-y-2">
+          {/* Primero intentar reconectar — si era un corte de red, esto alcanza */}
+          <button
+            onClick={handleRetry}
+            disabled={retrying || creating}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90 w-full disabled:opacity-50"
+          >
+            {retrying ? 'Reintentando…' : '↺ Reintentar conexión'}
+          </button>
+          {/* Si el reintento no funciona, crear el perfil como fallback */}
           <button
             onClick={createMyProfile}
-            disabled={creating}
-            className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90 w-full disabled:opacity-50"
+            disabled={creating || retrying}
+            className="border border-border px-4 py-2 rounded-md text-sm hover:bg-secondary w-full disabled:opacity-50"
           >
             {creating ? 'Creando perfil…' : 'Crear mi perfil ahora'}
           </button>
