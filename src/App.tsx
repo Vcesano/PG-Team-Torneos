@@ -197,10 +197,13 @@ function MissingProfileScreen() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading, loadError } = useAuth()
+  const { session, profile, loading, profileLoading, loadError } = useAuth()
   if (loadError) return <DiagnosticErrorScreen message={loadError} />
 
-  if (loading) {
+  // Mostrar spinner durante carga inicial O durante recarga del perfil.
+  // Así evitamos mostrar MissingProfileScreen cuando el perfil está cargando
+  // (ej: justo después de un SIGNED_IN o un refreshProfile).
+  if (loading || profileLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3">
         <img src="/logo.png" alt="PG Team" className="h-16 w-16 rounded-full ring-2 ring-primary animate-pulse" />

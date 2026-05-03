@@ -7,6 +7,7 @@ interface AuthContextValue {
   session: Session | null
   profile: Profile | null
   loading: boolean
+  profileLoading: boolean // true mientras se está cargando el perfil desde la DB
   loadError: string | null
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -31,40 +32,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadProfile = useCallback(async (userId: string) => {
-    // Reintenta hasta 3 veces con 2s de espera entre intentos.
-    // Así un corte momentáneo de red no termina en pantalla "perfil incompleto".
-    const MAX_ATTEMPTS = 3
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      try {
-        if (attempt > 0) {
-          console.log(`[auth] reintentando cargar perfil (intento ${attempt + 1}/${MAX_ATTEMPTS})`)
-          await new Promise(r => setTimeout(r, 2000 * attempt))
+    setProfileLoading(true)
+    try {
+      // Reintenta hasta 3 veces con 2s de espera entre intentos.
+      // Así un corte momentáneo de red no termina en pantalla "perfil incompleto".
+      const MAX_ATTEMPTS = 3
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        try {
+          if (attempt > 0) {
+            console.log(`[auth] reintentando cargar perfil (intento ${attempt + 1}/${MAX_ATTEMPTS})`)
+            await new Promise(r => setTimeout(r, 2000 * attempt))
+          }
+          // maybeSingle() devuelve { data: null, error: null } si no hay fila,
+          // en vez de un error PGRST116 como single(). Más seguro.
+          const result = await withTimeout<{ data: Profile | null; error: { message: string } | null }>(
+            supabase.from('profiles').select('*').eq('id', userId).maybeSingle() as unknown as PromiseLike<{ data: Profile | null; error: { message: string } | null }>,
+            SESSION_TIMEOUT_MS,
+            'cargar perfil'
+          )
+          const { data, error } = result
+          if (error) {
+            console.error(`[auth] error cargando perfil (intento ${attempt + 1})`, error)
+            continue // reintenta
+          }
+          setProfile(data) // null = genuinamente sin perfil
+          return
+        } catch (e) {
+          console.error(`[auth] excepción al cargar perfil (intento ${attempt + 1})`, e)
+          // sigue al siguiente intento
         }
-        // maybeSingle() devuelve { data: null, error: null } si no hay fila,
-        // en vez de un error PGRST116 como single(). Más seguro.
-        const result = await withTimeout<{ data: Profile | null; error: { message: string } | null }>(
-          supabase.from('profiles').select('*').eq('id', userId).maybeSingle() as unknown as PromiseLike<{ data: Profile | null; error: { message: string } | null }>,
-          SESSION_TIMEOUT_MS,
-          'cargar perfil'
-        )
-        const { data, error } = result
-        if (error) {
-          console.error(`[auth] error cargando perfil (intento ${attempt + 1})`, error)
-          continue // reintenta
-        }
-        setProfile(data) // null = genuinamente sin perfil
-        return
-      } catch (e) {
-        console.error(`[auth] excepción al cargar perfil (intento ${attempt + 1})`, e)
-        // sigue al siguiente intento
       }
+      // Todos los intentos fallaron
+      console.error('[auth] no se pudo cargar el perfil tras', MAX_ATTEMPTS, 'intentos')
+      setProfile(null)
+    } finally {
+      setProfileLoading(false)
     }
-    // Todos los intentos fallaron
-    console.error('[auth] no se pudo cargar el perfil tras', MAX_ATTEMPTS, 'intentos')
-    setProfile(null)
   }, [])
 
   useEffect(() => {
@@ -131,11 +138,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     init()
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (evt, newSession) => {
       if (!mounted) return
       setSession(newSession)
-      if (newSession?.user) await loadProfile(newSession.user.id)
-      else setProfile(null)
+      if (evt === 'SIGNED_OUT') {
+        // Cerró sesión explícitamente → limpiar perfil
+        setProfile(null)
+      } else if (evt === 'TOKEN_REFRESHED') {
+        // Solo se renovó el JWT — el perfil no cambió, no hace falta recargarlo.
+        // Este era el bug: TOKEN_REFRESHED disparaba loadProfile, que fallaba
+        // por red y dejaba profile=null con session válida → pantalla de error.
+        console.log('[auth] TOKEN_REFRESHED — sesión renovada, perfil sin cambios')
+      } else if (newSession?.user) {
+        // SIGNED_IN, USER_UPDATED u otro evento con sesión → cargar perfil
+        await loadProfile(newSession.user.id)
+      }
     })
 
     return () => {
@@ -158,8 +175,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session, loadProfile])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ session, profile, loading, loadError, signIn, signOut, refreshProfile }),
-    [session, profile, loading, loadError, signIn, signOut, refreshProfile]
+    () => ({ session, profile, loading, profileLoading, loadError, signIn, signOut, refreshProfile }),
+    [session, profile, loading, profileLoading, loadError, signIn, signOut, refreshProfile]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
